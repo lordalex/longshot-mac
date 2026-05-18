@@ -4,6 +4,8 @@ This file summarizes the prompt sequence used to create LongShot. It is written 
 
 The exact code may differ, but this sequence preserves the product intent, implementation constraints, debugging path, and polish passes that shaped the app.
 
+For a canonical single-prompt version, see [POM_PROMPT.md](POM_PROMPT.md).
+
 ## 1. Product Idea And Planning
 
 ```text
