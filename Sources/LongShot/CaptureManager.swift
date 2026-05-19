@@ -72,6 +72,7 @@ struct CaptureSettings {
 
 final class CaptureManager {
     var settings = CaptureSettings.load()
+    private let eventSource = CGEventSource(stateID: .hidSystemState)
 
     func captureLongPage(
         region: CGRect,
@@ -97,7 +98,7 @@ final class CaptureManager {
 
         progress("Focusing...")
         focusSelectedRegion(region)
-        Thread.sleep(forTimeInterval: 0.35)
+        Thread.sleep(forTimeInterval: 0.60)
 
         progress("Frame 1")
         let first = try captureRegion(region)
@@ -231,18 +232,28 @@ final class CaptureManager {
 
     private func focusSelectedRegion(_ region: CGRect) {
         let center = eventPoint(for: CGPoint(x: region.midX, y: region.midY))
-        CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: center, mouseButton: .left)?.post(tap: .cghidEventTap)
-        Thread.sleep(forTimeInterval: 0.08)
-        CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: center, mouseButton: .left)?.post(tap: .cghidEventTap)
-        CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: center, mouseButton: .left)?.post(tap: .cghidEventTap)
+        CGEvent(mouseEventSource: eventSource, mouseType: .mouseMoved, mouseCursorPosition: center, mouseButton: .left)?.post(tap: .cghidEventTap)
+        Thread.sleep(forTimeInterval: 0.10)
+        CGEvent(mouseEventSource: eventSource, mouseType: .leftMouseDown, mouseCursorPosition: center, mouseButton: .left)?.post(tap: .cghidEventTap)
+        Thread.sleep(forTimeInterval: 0.04)
+        CGEvent(mouseEventSource: eventSource, mouseType: .leftMouseUp, mouseCursorPosition: center, mouseButton: .left)?.post(tap: .cghidEventTap)
     }
 
     private func scrollDown(in region: CGRect) {
         let center = eventPoint(for: CGPoint(x: region.midX, y: region.midY))
-        CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: center, mouseButton: .left)?.post(tap: .cghidEventTap)
+        CGEvent(mouseEventSource: eventSource, mouseType: .mouseMoved, mouseCursorPosition: center, mouseButton: .left)?.post(tap: .cghidEventTap)
+        Thread.sleep(forTimeInterval: 0.04)
 
         let pixels = Int32(max(120, region.height * settings.scrollFraction))
-        CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: -pixels, wheel2: 0, wheel3: 0)?.post(tap: .cghidEventTap)
+        let tickCount = 4
+        let tickPixels = max(1, pixels / Int32(tickCount))
+        for _ in 0..<tickCount {
+            CGEvent(scrollWheelEvent2Source: eventSource, units: .pixel, wheelCount: 1, wheel1: -tickPixels, wheel2: 0, wheel3: 0)?.post(tap: .cghidEventTap)
+            Thread.sleep(forTimeInterval: 0.035)
+        }
+
+        let lineTicks = Int32(max(3, min(12, Int(region.height / 90))))
+        CGEvent(scrollWheelEvent2Source: eventSource, units: .line, wheelCount: 1, wheel1: -lineTicks, wheel2: 0, wheel3: 0)?.post(tap: .cghidEventTap)
     }
 
     private func eventPoint(for appKitPoint: CGPoint) -> CGPoint {

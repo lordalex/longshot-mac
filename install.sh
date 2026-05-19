@@ -13,7 +13,17 @@ fi
 pkill -x "$APP_NAME" 2>/dev/null || true
 ditto "$SOURCE_APP" "$DEST_APP"
 xattr -cr "$DEST_APP"
+touch "$DEST_APP"
 codesign --verify --deep --strict --verbose=2 "$DEST_APP"
+
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+if [[ -x "$LSREGISTER" ]]; then
+  "$LSREGISTER" -u "$DEST_APP" >/dev/null 2>&1 || true
+  "$LSREGISTER" -f "$DEST_APP" >/dev/null 2>&1 || true
+fi
+
+qlmanage -r >/dev/null 2>&1 || true
+qlmanage -r cache >/dev/null 2>&1 || true
 
 echo "Installed $DEST_APP"
 echo "Open it with: open '$DEST_APP'"

@@ -123,24 +123,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startController?.window?.orderOut(nil)
         NSApp.hide(nil)
 
-        captureManager.captureLongPage(region: region, progress: { [weak self] message in
-            DispatchQueue.main.async {
-                self?.statusItem.button?.toolTip = "LongShot: \(message)"
-            }
-        }, completion: { [weak self] result in
-            DispatchQueue.main.async {
-                self?.isCapturing = false
-                self?.statusItem.button?.toolTip = "LongShot"
-                NSApp.unhide(nil)
-                switch result {
-                case .success(let url):
-                    self?.lastCaptureURL = url
-                    self?.showPreview(url: url)
-                case .failure(let error):
-                    self?.showError(error.localizedDescription)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+            guard let self else { return }
+            self.captureManager.captureLongPage(region: region, progress: { [weak self] message in
+                DispatchQueue.main.async {
+                    self?.statusItem.button?.toolTip = "LongShot: \(message)"
                 }
-            }
-        })
+            }, completion: { [weak self] result in
+                DispatchQueue.main.async {
+                    self?.isCapturing = false
+                    self?.statusItem.button?.toolTip = "LongShot"
+                    NSApp.unhide(nil)
+                    switch result {
+                    case .success(let url):
+                        self?.lastCaptureURL = url
+                        self?.showPreview(url: url)
+                    case .failure(let error):
+                        self?.showError(error.localizedDescription)
+                    }
+                }
+            })
+        }
     }
 
     @objc private func checkPermissions() {
