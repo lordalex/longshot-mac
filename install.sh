@@ -11,8 +11,10 @@ if [[ ! -d "$SOURCE_APP" ]]; then
 fi
 
 pkill -x "$APP_NAME" 2>/dev/null || true
+rm -rf "$DEST_APP"
 ditto "$SOURCE_APP" "$DEST_APP"
 xattr -cr "$DEST_APP"
+touch "$DEST_APP/Contents/Info.plist" "$DEST_APP/Contents/Resources/AppIcon.icns"
 touch "$DEST_APP"
 codesign --verify --deep --strict --verbose=2 "$DEST_APP"
 
@@ -24,6 +26,7 @@ fi
 
 qlmanage -r >/dev/null 2>&1 || true
 qlmanage -r cache >/dev/null 2>&1 || true
+osascript -e "tell application \"Finder\" to update POSIX file \"$DEST_APP\"" >/dev/null 2>&1 || true
 
 echo "Installed $DEST_APP"
 echo "Open it with: open '$DEST_APP'"

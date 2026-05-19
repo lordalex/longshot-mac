@@ -74,6 +74,13 @@ final class CaptureManager {
     var settings = CaptureSettings.load()
     private let eventSource = CGEventSource(stateID: .hidSystemState)
 
+    private struct DisplayContext {
+        let screen: NSScreen
+        let displayID: CGDirectDisplayID
+        let screenFrame: CGRect
+        let displayBounds: CGRect
+    }
+
     func captureLongPage(
         region: CGRect,
         progress: @escaping (String) -> Void,
@@ -192,42 +199,49 @@ final class CaptureManager {
     }
 
     private func screenCaptureKitRects(for region: CGRect) -> [CGRect] {
-        let allScreens = NSScreen.screens.map(\.frame).reduce(CGRect.null) { $0.union($1) }
-        let flipped = CGRect(
-            x: region.minX,
-            y: allScreens.maxY - region.maxY,
+        guard let context = displayContext(for: region) else {
+            return [region.integral]
+        }
+
+        let displayLocal = CGRect(
+            x: context.displayBounds.minX + (region.minX - context.screenFrame.minX),
+            y: context.displayBounds.minY + (context.screenFrame.maxY - region.maxY),
             width: region.width,
             height: region.height
         ).integral
 
-        return [flipped, region.integral]
+        return [displayLocal, region.integral]
     }
 
     private func captureWithDisplayAPI(region: CGRect) -> CGImage? {
-        guard let target = targetDisplay(for: region) else {
+        guard let context = displayContext(for: region) else {
             return nil
         }
 
-        let screenFrame = target.screen.frame
-        let displayBounds = CGDisplayBounds(target.displayID)
         let displayRect = CGRect(
-            x: displayBounds.minX + (region.minX - screenFrame.minX),
-            y: displayBounds.minY + (screenFrame.maxY - region.maxY),
+            x: context.displayBounds.minX + (region.minX - context.screenFrame.minX),
+            y: context.displayBounds.minY + (context.screenFrame.maxY - region.maxY),
             width: region.width,
             height: region.height
         ).integral
 
-        return CGDisplayCreateImage(target.displayID, rect: displayRect)
+        return CGDisplayCreateImage(context.displayID, rect: displayRect)
     }
 
-    private func targetDisplay(for region: CGRect) -> (screen: NSScreen, displayID: CGDirectDisplayID)? {
+    private func displayContext(for region: CGRect) -> DisplayContext? {
         let center = CGPoint(x: region.midX, y: region.midY)
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(center) }),
               let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
             return nil
         }
 
-        return (screen, CGDirectDisplayID(screenNumber.uint32Value))
+        let displayID = CGDirectDisplayID(screenNumber.uint32Value)
+        return DisplayContext(
+            screen: screen,
+            displayID: displayID,
+            screenFrame: screen.frame,
+            displayBounds: CGDisplayBounds(displayID)
+        )
     }
 
     private func focusSelectedRegion(_ region: CGRect) {
@@ -257,8 +271,16 @@ final class CaptureManager {
     }
 
     private func eventPoint(for appKitPoint: CGPoint) -> CGPoint {
-        let allScreens = NSScreen.screens.map(\.frame).reduce(CGRect.null) { $0.union($1) }
-        return CGPoint(x: appKitPoint.x, y: allScreens.maxY - appKitPoint.y)
+        let pointRect = CGRect(x: appKitPoint.x, y: appKitPoint.y, width: 1, height: 1)
+        guard let context = displayContext(for: pointRect) else {
+            let mainFrame = NSScreen.main?.frame ?? CGRect.zero
+            return CGPoint(x: appKitPoint.x, y: mainFrame.maxY - appKitPoint.y)
+        }
+
+        return CGPoint(
+            x: context.displayBounds.minX + (appKitPoint.x - context.screenFrame.minX),
+            y: context.displayBounds.minY + (context.screenFrame.maxY - appKitPoint.y)
+        )
     }
 
     private func outputURL() throws -> URL {
